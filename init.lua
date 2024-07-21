@@ -282,13 +282,14 @@ require('lazy').setup({
       -- Document existing key chains
 
       require('which-key').add {
-        { '<leader>c', group = '[C]ode', hidden = true },
+        { '<leader>c', group = '[C]ode' },
         { '<leader>d', group = '[D]ocument', hidden = true },
-        { '<leader>h', group = 'Git [H]unk', hidden = true },
-        { '<leader>r', group = '[R]ename', hidden = true },
+        { '<leader>h', group = 'Git [H]unk' },
+        { '<leader>r', group = '[R]ename' },
         { '<leader>s', group = '[S]earch' },
         { '<leader>t', group = '[t]oggle', hidden = true },
-        { '<leader>T', group = '[T]elescope', hidden = true },
+        { '<leader>T', group = '[T]elescope' },
+        { '<leader>l', group = '[L]SP' },
 
         -- visual mode
         { '<leader>h', desc = 'Git [H]unk', mode = 'v' },
@@ -376,7 +377,7 @@ require('lazy').setup({
       local builtin = require 'telescope.builtin'
       vim.keymap.set('n', '<leader>sh', builtin.help_tags, { desc = '[S]earch [H]elp' })
       vim.keymap.set('n', '<leader>sk', builtin.keymaps, { desc = '[S]earch [K]eymaps' })
-      vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })
+      vim.keymap.set('n', '<leader>sf', builtin.git_files, { desc = '[S]earch [F]iles' })
       vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
       vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = '[S]earch current [W]ord' })
       vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
@@ -389,8 +390,8 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>/', function()
         -- You can pass additional configuration to Telescope to change the theme, layout, etc.
         builtin.current_buffer_fuzzy_find(require('telescope.themes').get_dropdown {
-          winblend = 10,
-          previewer = false,
+          -- winblend = 10,
+          -- previewer = false,
         })
       end, { desc = '[/] Fuzzily search in current buffer' })
 
@@ -490,19 +491,19 @@ require('lazy').setup({
 
           -- Fuzzy find all the symbols in your current document.
           --  Symbols are things like variables, functions, types, etc.
-          map('<leader>Tds', require('telescope.builtin').lsp_document_symbols, '[D]ocument [S]ymbols')
+          map('<leader>sds', require('telescope.builtin').lsp_document_symbols, '[D]ocument [S]ymbols')
 
           -- Fuzzy find all the symbols in your current workspace.
           --  Similar to document symbols, except searches over your entire project.
-          map('<leader>Tws', require('telescope.builtin').lsp_dynamic_workspace_symbols, '[W]orkspace [S]ymbols')
+          map('<leader>st', require('telescope.builtin').lsp_dynamic_workspace_symbols, '[W]orkspace [S]ymbols')
 
           -- Rename the variable under your cursor.
           --  Most Language Servers support renaming across files, etc.
-          map('<leader>rn', vim.lsp.buf.rename, '[R]e[n]ame')
+          map('<leader>lr', vim.lsp.buf.rename, '[L]SP [R]ename')
 
           -- Execute a code action, usually your cursor needs to be on top of an error
           -- or a suggestion from your LSP for this to activate.
-          map('<leader>ca', vim.lsp.buf.code_action, '[C]ode [A]ction')
+          map('<leader>la', vim.lsp.buf.code_action, '[L]SP Code [A]ction')
 
           -- Opens a popup that displays documentation about the word under your cursor
           --  See `:help K` for why this keymap.
@@ -511,6 +512,8 @@ require('lazy').setup({
           -- WARN: This is not Goto Definition, this is Goto Declaration.
           --  For example, in C this would take you to the header.
           map('gD', vim.lsp.buf.declaration, '[G]oto [D]eclaration')
+
+          map('<leader>lo', '<cmd>TSToolsOrganizeImports<CR>', '[L]SP [O]rganize imports')
 
           -- The following two autocommands are used to highlight references of the
           -- word under your cursor when your cursor rests there for a little while.
@@ -597,6 +600,12 @@ require('lazy').setup({
             },
           },
         },
+        --   tsserver = {
+        --     capabilities = {
+        --       documentFormattingProvider = false,
+        --       documentRangeFormattingProvider = false,
+        --     },
+        --   },
       }
 
       -- Ensure the servers and tools above are installed
@@ -612,11 +621,17 @@ require('lazy').setup({
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
         'stylua', -- Used to format Lua code
-        'biome',
+        -- 'biome',
         'eslint-lsp',
-        'typescript-language-server',
+        'prettier',
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
+
+      vim.lsp.buf.format {
+        filter = function(client)
+          return client.name ~= 'tsserver'
+        end,
+      }
 
       require('mason-lspconfig').setup {
         handlers = {
@@ -638,12 +653,12 @@ require('lazy').setup({
     lazy = false,
     keys = {
       {
-        '<leader>f',
+        '<leader>lf',
         function()
           require('conform').format { async = true, lsp_fallback = true }
         end,
         mode = '',
-        desc = '[F]ormat buffer',
+        desc = '[L]SP [F]ormat buffer',
       },
     },
     opts = {
@@ -665,7 +680,10 @@ require('lazy').setup({
         --
         -- You can use a sub-list to tell conform to run *until* a formatter
         -- is found.
-        -- javascript = { { "prettierd", "prettier" } },
+        javascript = { { 'prettierd', 'prettier' } },
+        typescript = { { 'prettierd', 'prettier' } },
+        javascriptreact = { { 'prettierd', 'prettier' } },
+        typescriptreact = { { 'prettierd', 'prettier' } },
         -- TODO: maybe add prettier
       },
     },
@@ -798,6 +816,18 @@ require('lazy').setup({
 
       -- You can configure highlights by doing something like:
       vim.cmd.hi 'Comment gui=none'
+    end,
+    config = function()
+      require('tokyonight').setup {
+        style = 'night',
+        on_colors = function() end,
+        on_highlights = function(highlights, colors)
+          highlights.DiagnosticUnnecessary = {
+            fg = '#56608A',
+          }
+          -- print(vim.inspect(highlights))
+        end,
+      }
     end,
   },
 
