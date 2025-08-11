@@ -93,6 +93,8 @@ vim.g.maplocalleader = ' '
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = true
 
+vim.opt.termguicolors = true
+
 -- [[ Setting options ]]
 -- See `:help vim.o`
 -- NOTE: You can change these options as you wish!
@@ -237,6 +239,10 @@ end
 local rtp = vim.opt.rtp
 rtp:prepend(lazypath)
 
+local function client_supports_method(client, method)
+  return client.supports_method and client:supports_method(method)
+end
+
 -- [[ Configure and install plugins ]]
 --
 --  To check the current status of your plugins, run
@@ -248,7 +254,7 @@ rtp:prepend(lazypath)
 --    :Lazy update
 --
 -- NOTE: Here is where you install your plugins.
-require('lazy').setup({
+require('lazy').setup {
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
   'NMAC427/guess-indent.nvim', -- Detect tabstop and shiftwidth automatically
 
@@ -344,9 +350,10 @@ require('lazy').setup({
           F12 = '<F12>',
         },
       },
+    },
 
-      -- Document existing key chains
-
+    -- Document existing key chains
+    config = function()
       require('which-key').add {
         { '<leader>c', group = '[C]ode' },
         { '<leader>d', group = '[D]ocument', hidden = true },
@@ -568,7 +575,7 @@ require('lazy').setup({
           -- Jump to the definition of the word under your cursor.
           --  This is where a variable was first declared, or where a function is defined, etc.
           --  To jump back, press <C-t>.
-          map('grd', require('telescope.builtin').lsp_definitions, '[G]oto [D]efinition')
+          map('gd', require('telescope.builtin').lsp_definitions, '[G]oto [D]efinition')
 
           -- WARN: This is not Goto Definition, this is Goto Declaration.
           --  For example, in C this would take you to the header.
@@ -756,6 +763,7 @@ require('lazy').setup({
         -- 'biome',
         'eslint-lsp',
         'prettier',
+        'prettierd',
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -768,6 +776,7 @@ require('lazy').setup({
       require('mason-lspconfig').setup {
         ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
         automatic_installation = false,
+        automatic_enable = true,
         handlers = {
           function(server_name)
             local server = servers[server_name] or {}
@@ -819,33 +828,35 @@ require('lazy').setup({
         typescript = { 'prettierd', 'prettier', stop_after_first = true },
         javascriptreact = { 'prettierd', 'prettier', stop_after_first = true },
         javascript = { 'prettierd', 'prettier', stop_after_first = true },
-        -- TODO: maybe add prettier
+        json = { 'prettierd', 'prettier', stop_after_first = true },
+        jsonc = { 'prettierd', 'prettier', stop_after_first = true },
+        json5 = { 'prettierd', 'prettier', stop_after_first = true },
+      },
+      formatters = {
+        prettier = { prefer_local = 'node_modules/.bin' },
       },
     },
   },
-
-  { -- Autocompletion
+  {
+    -- Autocompletion via blink.cmp
     'saghen/blink.cmp',
-    event = 'VimEnter',
     version = '1.*',
+    event = 'InsertEnter', -- Load on InsertEnter for performance
     dependencies = {
-      -- Snippet Engine
+      'hrsh7th/nvim-cmp',
       {
         'L3MON4D3/LuaSnip',
         version = '2.*',
-        build = (function()
-          -- Build Step is needed for regex support in snippets.
-          -- This step is not supported in many windows environments.
-          -- Remove the below condition to re-enable on windows.
+        build = function()
+          -- Build regex support for snippets (skip on Windows or no `make`)
           if vim.fn.has 'win32' == 1 or vim.fn.executable 'make' == 0 then
             return
           end
           return 'make install_jsregexp'
-        end)(),
+        end,
+        opts = {}, -- optional config block
+        -- Optional friendly-snippets (commented out)
         dependencies = {
-          -- `friendly-snippets` contains a variety of premade snippets.
-          --    See the README about individual language/framework/plugin snippets:
-          --    https://github.com/rafamadriz/friendly-snippets
           -- {
           --   'rafamadriz/friendly-snippets',
           --   config = function()
@@ -853,84 +864,67 @@ require('lazy').setup({
           --   end,
           -- },
         },
-        opts = {},
       },
       'folke/lazydev.nvim',
     },
-    --- @module 'blink.cmp'
-    --- @type blink.cmp.Config
-    opts = {
-      keymap = {
-        -- 'default' (recommended) for mappings similar to built-in completions
-        --   <c-y> to accept ([y]es) the completion.
-        --    This will auto-import if your LSP supports it.
-        --    This will expand snippets if the LSP sent a snippet.
-        -- 'super-tab' for tab to accept
-        -- 'enter' for enter to accept
-        -- 'none' for no mappings
-        --
-        -- For an understanding of why the 'default' preset is recommended,
-        -- you will need to read `:help ins-completion`
-        --
-        -- No, but seriously. Please read `:help ins-completion`, it is really good!
-        --
-        -- All presets have the following mappings:
-        -- <tab>/<s-tab>: move to right/left of your snippet expansion
-        -- <c-space>: Open menu or open docs if already open
-        -- <c-n>/<c-p> or <up>/<down>: Select next/previous item
-        -- <c-e>: Hide menu
-        -- <c-k>: Toggle signature help
-        --
-        -- See :h blink-cmp-config-keymap for defining your own keymap
-        preset = 'default',
+    opts = function()
+      return {
+        keymap = {
+          ['<C-space>'] = { 'show', 'show_documentation', 'hide_documentation' },
+          ['<C-e>'] = { 'hide', 'fallback' },
+          ['<CR>'] = { 'accept', 'fallback' },
 
-        -- For more advanced Luasnip keymaps (e.g. selecting choice nodes, expansion) see:
-        --    https://github.com/L3MON4D3/LuaSnip?tab=readme-ov-file#keymaps
-      },
+          ['<Tab>'] = { 'snippet_forward', 'fallback' },
+          ['<S-Tab>'] = { 'snippet_backward', 'fallback' },
 
-          -- Accept ([y]es) the completion.
-          --  This will auto-import if your LSP supports it.
-          --  This will expand snippets if the LSP sent a snippet.
-          -- ['<C-y>'] = cmp.mapping.confirm { select = true },
+          ['<Up>'] = { 'select_prev', 'fallback' },
+          ['<Down>'] = { 'select_next', 'fallback' },
+          ['<C-p>'] = { 'select_prev', 'fallback_to_mappings' },
+          ['<C-n>'] = { 'select_next', 'fallback_to_mappings' },
 
-          -- If you prefer more traditional completion keymaps,
-          -- you can uncomment the following lines
-          ['<CR>'] = cmp.mapping.confirm { select = true },
-          ['<Tab>'] = cmp.mapping.select_next_item(),
-          ['<S-Tab>'] = cmp.mapping.select_prev_item(),
-      appearance = {
-        -- 'mono' (default) for 'Nerd Font Mono' or 'normal' for 'Nerd Font'
-        -- Adjusts spacing to ensure icons are aligned
-        nerd_font_variant = 'mono',
-      },
+          ['<C-b>'] = { 'scroll_documentation_up', 'fallback' },
+          ['<C-f>'] = { 'scroll_documentation_down', 'fallback' },
 
-      completion = {
-        -- By default, you may press `<c-space>` to show the documentation.
-        -- Optionally, set `auto_show = true` to show the documentation after a delay.
-        documentation = { auto_show = false, auto_show_delay_ms = 500 },
-      },
-
-      sources = {
-        default = { 'lsp', 'path', 'snippets', 'lazydev' },
-        providers = {
-          lazydev = { module = 'lazydev.integrations.blink', score_offset = 100 },
+          ['<C-k>'] = { 'show_signature', 'hide_signature', 'fallback' },
         },
-      },
 
-      snippets = { preset = 'luasnip' },
+        appearance = {
+          nerd_font_variant = 'mono', -- "normal" if you use a full Nerd Font
+        },
 
-      -- Blink.cmp includes an optional, recommended rust fuzzy matcher,
-      -- which automatically downloads a prebuilt binary when enabled.
-      --
-      -- By default, we use the Lua implementation instead, but you may enable
-      -- the rust implementation via `'prefer_rust_with_warning'`
-      --
-      -- See :h blink-cmp-config-fuzzy for more information
-      fuzzy = { implementation = 'lua' },
+        completion = {
+          documentation = {
+            auto_show = false,
+            auto_show_delay_ms = 500,
+          },
+          trigger = {
+            show_in_snippet = false,
+          },
+        },
 
-      -- Shows a signature help window while you type arguments for a function
-      signature = { enabled = true },
-    },
+        sources = {
+          default = { 'lsp', 'path', 'snippets', 'lazydev' },
+          providers = {
+            lazydev = {
+              module = 'lazydev.integrations.blink',
+              score_offset = 100,
+            },
+          },
+        },
+
+        snippets = {
+          preset = 'luasnip',
+        },
+
+        fuzzy = {
+          implementation = 'lua', -- or "prefer_rust_with_warning"
+        },
+
+        signature = {
+          enabled = true,
+        },
+      }
+    end,
   },
 
   { -- You can easily change to a different colorscheme.
@@ -944,27 +938,24 @@ require('lazy').setup({
     config = function()
       ---@diagnostic disable-next-line: missing-fields
       require('tokyonight').setup {
+        transparent = true, -- Enable transparent background
         styles = {
-          comments = { italic = false }, -- Disable italics in comments
+          -- comments = { italic = false }, -- Disable italics in comments
+          sidebars = 'transparent',
+          floats = 'transparent',
         },
+        style = 'night',
+        on_highlights = function(highlights)
+          highlights.DiagnosticUnnecessary = {
+            fg = '#56608A',
+          }
+        end,
       }
 
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
       -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
       vim.cmd.colorscheme 'tokyonight-night'
-    end,
-    config = function()
-      require('tokyonight').setup {
-        style = 'night',
-        on_colors = function() end,
-        on_highlights = function(highlights, colors)
-          highlights.DiagnosticUnnecessary = {
-            fg = '#56608A',
-          }
-          -- print(vim.inspect(highlights))
-        end,
-      }
     end,
   },
 
@@ -1056,7 +1047,6 @@ require('lazy').setup({
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
   --    For additional information, see `:help lazy.nvim-lazy.nvim-structuring-your-plugins`
   { import = 'custom.plugins' },
-}, {
   ui = {
     -- If you are using a Nerd Font: set icons to an empty table which will use the
     -- default lazy.nvim defined Nerd Font icons, otherwise define a unicode icons table
@@ -1076,9 +1066,32 @@ require('lazy').setup({
       lazy = '💤 ',
     },
   },
-})
+}
 
 vim.keymap.set('n', '<leader>e', ':Neotree reveal toggle<CR>', { desc = 'Open [E]xplorer' })
+
+local function smart_split_move(key, tmux_flag)
+  return function()
+    local cur_win = vim.api.nvim_get_current_win()
+    vim.cmd('wincmd ' .. key)
+    if vim.api.nvim_get_current_win() == cur_win then
+      -- Movement in nvim failed, fall back to tmux
+      vim.fn.system { 'tmux', 'select-pane', tmux_flag }
+    end
+  end
+end
+
+-- Mapping table: nvim key => tmux flag
+local directions = {
+  h = '-L', -- left
+  j = '-D', -- down
+  k = '-U', -- up
+  l = '-R', -- right
+}
+
+for key, tmux_flag in pairs(directions) do
+  vim.keymap.set('n', '<C-' .. key .. '>', smart_split_move(key, tmux_flag), { silent = true })
+end
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
