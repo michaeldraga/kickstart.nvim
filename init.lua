@@ -293,6 +293,9 @@ require('lazy').setup {
     },
   },
 
+  -- lazy plugin spec
+  { 'vhyrro/luarocks.nvim', priority = 1000, config = true }, -- optional helper
+
   -- NOTE: Plugins can also be configured to run Lua code when they are loaded.
   --
   -- This is often very useful to both group configuration, as well as handle
@@ -358,7 +361,7 @@ require('lazy').setup {
         { '<leader>c', group = '[C]ode' },
         { '<leader>d', group = '[D]ocument', hidden = true },
         { '<leader>h', group = 'Git [H]unk' },
-        { '<leader>r', group = '[R]ename' },
+        { '<leader>r', group = '[R]est' },
         { '<leader>s', group = '[S]earch' },
         { '<leader>t', group = '[t]oggle', hidden = true },
         { '<leader>T', group = '[T]elescope' },
@@ -1092,6 +1095,8 @@ local directions = {
 for key, tmux_flag in pairs(directions) do
   vim.keymap.set('n', '<C-' .. key .. '>', smart_split_move(key, tmux_flag), { silent = true })
 end
+
+require 'custom.terminal-switch'
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
