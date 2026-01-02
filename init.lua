@@ -168,6 +168,9 @@ vim.o.scrolloff = 10
 -- See `:help 'confirm'`
 vim.o.confirm = true
 
+vim.g.loaded_netrw = 1
+vim.g.loaded_netrwPlugin = 1
+
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
 
@@ -616,6 +619,8 @@ require('lazy').setup {
           -- or a suggestion from your LSP for this to activate.
           map('<leader>la', vim.lsp.buf.code_action, '[L]SP Code [A]ction')
 
+          map('<leader>lc', vim.lsp.codelens.run, '[L]SP Code [A]ction')
+
           -- Opens a popup that displays documentation about the word under your cursor
           --  See `:help K` for why this keymap.
           map('K', vim.lsp.buf.hover, 'Hover Documentation')
@@ -663,6 +668,18 @@ require('lazy').setup {
             map('<leader>th', function()
               vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled { bufnr = event.buf })
             end, '[T]oggle Inlay [H]ints')
+          end
+        end,
+      })
+
+      -- Enable inlay hints automatically for Rust (and any server that supports it)
+      vim.api.nvim_create_autocmd('LspAttach', {
+        group = vim.api.nvim_create_augroup('UserLspAttachInlayHints', { clear = true }),
+        callback = function(args)
+          local client = vim.lsp.get_client_by_id(args.data.client_id)
+          if client and client.server_capabilities.inlayHintProvider then
+            -- Neovim 0.10+ API
+            pcall(vim.lsp.inlay_hint.enable, args.buf, true)
           end
         end,
       })
@@ -715,7 +732,31 @@ require('lazy').setup {
         -- clangd = {},
         -- gopls = {},
         -- pyright = {},
-        -- rust_analyzer = {},
+        rust_analyzer = {
+          settings = {
+            ['rust-analyzer'] = {
+              cargo = {
+                allFeatures = true,
+                buildScripts = { enable = true },
+              },
+              procMacro = { enable = true },
+              checkOnSave = {
+                command = 'clippy',
+                extraArgs = { '--all-features' },
+              },
+              inlayHints = {
+                bindingModeHints = { enable = true },
+                chainingHints = { enable = true },
+                closingBraceHints = { enable = true },
+                closureReturnTypeHints = { enable = 'with_block' },
+                lifetimeElisionHints = { enable = 'never' },
+                parameterHints = { enable = true },
+                reborrowHints = { enable = 'always' },
+                typeHints = { enable = true },
+              },
+            },
+          },
+        },
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
         -- Some languages (like typescript) have entire language plugins that can be useful:
@@ -767,6 +808,7 @@ require('lazy').setup {
         'eslint-lsp',
         'prettier',
         'prettierd',
+        'rust-analyzer',
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -834,6 +876,8 @@ require('lazy').setup {
         json = { 'prettierd', 'prettier', stop_after_first = true },
         jsonc = { 'prettierd', 'prettier', stop_after_first = true },
         json5 = { 'prettierd', 'prettier', stop_after_first = true },
+        rust = { 'rustfmt' },
+        haskell = { 'fourmolu' },
       },
       formatters = {
         prettier = { prefer_local = 'node_modules/.bin' },
@@ -1008,7 +1052,7 @@ require('lazy').setup {
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'vim', 'vimdoc', 'typescript' },
+      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'vim', 'vimdoc', 'typescript', 'haskell' },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = {

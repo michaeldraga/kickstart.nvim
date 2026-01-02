@@ -1,0 +1,132 @@
+-- local M = {}
+--
+-- local ns = vim.api.nvim_create_namespace 'stable_codelens'
+-- local inflight = {} ---@type table<integer, integer> -- bufnr -> tick at request time
+--
+-- local function get_ts_client(bufnr)
+--   local clients = vim.lsp.get_clients { bufnr = bufnr }
+--   -- Prefer tsserver / typescript-tools
+--   for _, c in ipairs(clients) do
+--     if c.name == 'typescript-tools' or c.name == 'tsserver' then
+--       if c.supports_method 'textDocument/codeLens' then
+--         return c
+--       end
+--     end
+--   end
+--   -- Fallback: any client that supports codelens
+--   for _, c in ipairs(clients) do
+--     if c.supports_method 'textDocument/codeLens' then
+--       return c
+--     end
+--   end
+-- end
+--
+-- local function render(bufnr, items)
+--   -- Replace in one step: clear our namespace, then place new extmarks
+--   vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+--
+--   for _, it in ipairs(items) do
+--     local lnum = it.lnum
+--     local text = it.text
+--     if lnum and text and text ~= '' then
+--       pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, lnum, 0, {
+--         virt_text = { { text, 'LspCodeLens' } },
+--         virt_text_pos = 'eol',
+--         hl_mode = 'combine',
+--       })
+--     end
+--   end
+-- end
+--
+-- -- Resolve lenses fully and then render; keep old lenses visible while resolving.
+-- function M.refresh(bufnr)
+--   bufnr = bufnr or vim.api.nvim_get_current_buf()
+--   if not vim.api.nvim_buf_is_valid(bufnr) then
+--     return
+--   end
+--
+--   local client = get_ts_client(bufnr)
+--   if not client then
+--     return
+--   end
+--
+--   local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+--   inflight[bufnr] = tick
+--
+--   local params = vim.lsp.util.make_text_document_params(bufnr)
+--
+--   client.request('textDocument/codeLens', params, function(err, lenses)
+--     if err or not lenses or inflight[bufnr] ~= tick then
+--       return
+--     end
+--
+--     -- Resolve any lenses that don't have command/title yet
+--     local remaining = 0
+--     local function done()
+--       if inflight[bufnr] ~= tick then
+--         return
+--       end
+--       -- If the buffer changed while resolving, discard to avoid mismatches/duplicates
+--       if vim.api.nvim_buf_get_changedtick(bufnr) ~= tick then
+--         return
+--       end
+--
+--       local items = {}
+--       for _, l in ipairs(lenses) do
+--         local range = l.range
+--         local cmd = l.command
+--         local title = cmd and cmd.title or nil
+--         if range and title and title ~= '' then
+--           items[#items + 1] = { lnum = range.start.line, text = title }
+--         end
+--       end
+--
+--       vim.schedule(function()
+--         if not vim.api.nvim_buf_is_valid(bufnr) then
+--           return
+--         end
+--         if inflight[bufnr] ~= tick then
+--           return
+--         end
+--         if vim.api.nvim_buf_get_changedtick(bufnr) ~= tick then
+--           return
+--         end
+--         render(bufnr, items)
+--       end)
+--     end
+--
+--     local can_resolve = client.supports_method 'codeLens/resolve'
+--     if not can_resolve then
+--       done()
+--       return
+--     end
+--
+--     for i, l in ipairs(lenses) do
+--       if not (l.command and l.command.title and l.command.title ~= '') then
+--         remaining = remaining + 1
+--         client.request('codeLens/resolve', l, function(res_err, resolved)
+--           remaining = remaining - 1
+--           if not res_err and resolved then
+--             lenses[i] = resolved
+--           end
+--           if remaining == 0 then
+--             done()
+--           end
+--         end, bufnr)
+--       end
+--     end
+--
+--     if remaining == 0 then
+--       done()
+--     end
+--   end, bufnr)
+-- end
+--
+-- function M.clear(bufnr)
+--   bufnr = bufnr or vim.api.nvim_get_current_buf()
+--   if vim.api.nvim_buf_is_valid(bufnr) then
+--     vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+--   end
+-- end
+--
+-- return M

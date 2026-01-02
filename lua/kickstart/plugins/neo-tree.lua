@@ -1,6 +1,11 @@
 -- Neo-tree is a Neovim plugin to browse the file system
 -- https://github.com/nvim-neo-tree/neo-tree.nvim
 
+local function is_oil_buffer()
+  local name = vim.api.nvim_buf_get_name(0)
+  return name:match '^oil://' ~= nil
+end
+
 return {
   'nvim-neo-tree/neo-tree.nvim',
   version = '*',
@@ -15,7 +20,19 @@ return {
   end,
   lazy = false,
   keys = {
-    { '\\', ':Neotree reveal toggle<CR>', { desc = 'Neo-tree: filesystem' } },
+    {
+      '\\',
+      function()
+        if is_oil_buffer() then
+          vim.cmd 'Neotree toggle left filesystem reveal=false'
+          return
+        end
+        -- Toggle Neo-tree filesystem
+        vim.cmd 'Neotree toggle left filesystem reveal=true'
+      end,
+      { desc = 'Neo-tree: filesystem' },
+    },
+    -- { '\\', ':Neotree reveal toggle<CR>', { desc = 'Neo-tree: filesystem' } },
     -- { '<leader>e', ':Neotree toggle left filesystem<CR>', desc = 'Neo-tree: filesystem' },
     { '<leader>eg', ':Neotree toggle left git_status<CR>', desc = 'Neo-tree: git status' },
     { '<leader>ed', ':Neotree toggle left diagnostics<CR>', desc = 'Neo-tree: diagnostics' },
